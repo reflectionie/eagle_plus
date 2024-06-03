@@ -1,10 +1,10 @@
 import argparse
 
 parser = argparse.ArgumentParser(description='sp')
-parser.add_argument('--basepath', type=str, default='/home/lyh/weights/hf/vicuna_v13/7B/')
+parser.add_argument('--basepath', type=str, default='/home/5/uu02155/data/.cache/huggingface/hub/models--lmsys--vicuna-7b-v1.3/snapshots/236eeeab96f0dc2e463f2bebb7bb49809279c6d6')
 parser.add_argument('--configpath', type=str, default="config.json")
 parser.add_argument('--lr', type=float, default=3e-5)
-parser.add_argument('--bs', type=int, default=4)
+parser.add_argument('--bs', type=int, default=18)
 parser.add_argument('--gradient-accumulation-steps', type=int, default=1)
 parser.add_argument('--tmpdir', type=str, default='0')
 parser.add_argument('--outdir', type=str, default='0')
@@ -12,6 +12,8 @@ parser.add_argument('--cpdir', type=str, default='0')
 args = parser.parse_args()
 
 train_config = {
+    "num_processes": 2,
+    "num_machines": 1,
     "lr": args.lr,
     "bs": args.bs,
     "gradient_accumulation_steps": args.gradient_accumulation_steps,
@@ -44,7 +46,7 @@ import json
 from safetensors import safe_open
 # from transformers import AutoModelForCausalLM, AutoTokenizer,AutoModelForSequenceClassification
 import os
-# os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 import torch
 
 torch.backends.cuda.matmul.allow_tf32 = True
@@ -68,7 +70,7 @@ from transformers import get_linear_schedule_with_warmup, AutoConfig
 if accelerator.is_main_process:
     import wandb
 
-    wandb.init(project="ess", entity="yuhui-li", config=train_config)
+    wandb.init(project="eagle_train", entity="reflectionie", config=train_config)
 
 baseconfig = AutoConfig.from_pretrained(args.basepath)
 

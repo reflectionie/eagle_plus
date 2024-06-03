@@ -1,3 +1,10 @@
+# dataset
+new_train_data/
+training_data/
+
+# checkpoiints
+ckpt/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

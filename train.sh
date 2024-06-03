@@ -1,0 +1,1 @@
+ accelerate launch -m --mixed_precision=bf16 eagle.train.main --tmpdir /gs/bs/tga-tslab/tingyuan/llama/EAGLE/training_data --cpdir ./ --configpath /gs/bs/tga-tslab/tingyuan/llama/EAGLE/eagle/train/vicuna_7B_config.json
