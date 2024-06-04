@@ -19,7 +19,9 @@ from datasets import load_dataset
 import json
 from fastchat.model.model_adapter import get_conversation_template
 
-bigname="vicunav13/13B"
+
+bigname = "lmsys/vicuna-7b-v1.3"
+# bigname="vicunav13/13B"
 # bigname = "/home/lyh/weights/hf/llama/7B/"
 # smallname = "/home/lyh/weights/hf/llama/7B/"
 
@@ -43,7 +45,7 @@ def build_dataset_rank(
         tokenizer, split="train",
         select=None,
 ):
-    ds = load_dataset('json', data_files="ShareGPT_V4.3_unfiltered_cleaned_split.json")
+    ds = load_dataset('json', data_files="/net/papilio/storage7/tingyuan/llm_inference/eagle/EAGLE/ge_data/ShareGPT_V4.3_unfiltered_cleaned_split.json")
     ds = ds['train']
     ds = ds.shuffle(seed=42)
     ds1 = ds.select(range(args.start, args.end))
@@ -167,8 +169,11 @@ def ge(data):
     hidden_state_big = outs_big.hidden_states[-1]
     max_prob_tokens_big = torch.argmax(outs_big.logits, dim=-1)
     probs = torch.softmax(outs_big.logits, dim=-1)
+    print("probs: {}".format(probs.cpu()[0].shape))
+    print("input_ids: {}".format(input_ids.cpu()[0].shape))
+    print("hidden_state: {}".format(hidden_state_big.cpu()[0].shape))
     maxp=probs[0].max(dim=1).values
-    td={"input_ids":input_ids.cpu()[0],"hidden_state":hidden_state_big.cpu()[0],"loss_mask":data["loss_mask"].cpu()[0]}
+    td={"input_ids":input_ids.cpu()[0],"hidden_state":hidden_state_big.cpu()[0],"loss_mask":data["loss_mask"].cpu()[0],"probs":probs.cpu()[0]}
     return td
 
 outdir = f'{args.outdir}/{args.index}'
@@ -183,7 +188,7 @@ def writedata(name,data_point):
     torch.save(data_point, f'{name}/data_{idx}.ckpt')
 
 
-for data in ds:
+for data in tqdm(ds):
     outdata = ge(data)
     writedata(outdir,outdata)
 
