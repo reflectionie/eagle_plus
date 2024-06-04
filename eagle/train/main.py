@@ -41,7 +41,8 @@ train_config = {
     "b1": 0.9,
     "b2": 0.95,
     "grad_clip": 0.5,
-    "save_freq": 5
+    "save_freq": 5,
+    "wandb_run_name": args.wandb_run_name
 }
 import json
 from safetensors import safe_open
