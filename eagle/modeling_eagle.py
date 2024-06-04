@@ -700,10 +700,13 @@ class EAGLEModel(nn.Module):
         self.vocab_size = config.vocab_size
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, self.padding_idx)
         self.layers = nn.ModuleList([EAGLEDecoderLayer(config, index) for index in range(config.num_hidden_layers)])
-        self.fc = nn.Linear(3 * config.hidden_size, config.hidden_size, bias=bias)
+        if config.input_prob:
+            self.fc = nn.Linear(3 * config.hidden_size, config.hidden_size, bias=bias)
+        else:
+            self.fc = nn.Linear(2 * config.hidden_size, config.hidden_size, bias=bias)
         self.act = ACT2FN[config.hidden_act]
-        
-        self.prob_fc = nn.Linear(config.vocab_size, config.hidden_size, bias=bias)
+        if config.input_prob:
+            self.prob_fc = nn.Linear(config.vocab_size, config.hidden_size, bias=bias)
 
     def init_tree(self):
 
@@ -750,7 +753,7 @@ class EAGLEModel(nn.Module):
             self,
             hidden_states,
             input_ids,
-            input_prob,
+            input_prob: Optional[torch.Tensor] = None,
             attention_mask: Optional[torch.Tensor] = None,
             position_ids: Optional[torch.LongTensor] = None,
             past_key_values: Optional[List[torch.FloatTensor]] = None,
@@ -762,12 +765,12 @@ class EAGLEModel(nn.Module):
         seq_length_with_past = seq_length
         past_key_values_length = 0
         
-        _, _, vocab_size = input_prob.shape
 
         with torch.no_grad():
             inputs_embeds = self.embed_tokens(input_ids)
         
-        prob_hidden = self.prob_fc(input_prob)
+        if input_prob:
+            prob_hidden = self.prob_fc(input_prob)
 
         if past_key_values is not None:
             past_key_values_length = past_key_values[0][0].shape[2]
@@ -790,9 +793,13 @@ class EAGLEModel(nn.Module):
         )
 
         inputs_embeds = inputs_embeds.to(hidden_states.dtype)
-        prob_hidden = prob_hidden.to(hidden_states.dtype)
-        # hidden_states = self.fc(torch.cat((inputs_embeds, hidden_states), dim=-1))
-        hidden_states = hidden_states = self.fc(torch.cat((inputs_embeds, hidden_states, prob_hidden), dim=-1))
+        
+        if input_prob:
+            prob_hidden = prob_hidden.to(hidden_states.dtype)
+            hidden_states = self.fc(torch.cat((inputs_embeds, hidden_states, prob_hidden), dim=-1))
+        else: 
+            hidden_states = self.fc(torch.cat((inputs_embeds, hidden_states), dim=-1))
+       
 
         all_hidden_states = () if output_hidden_states else None
         next_decoder_cache = () if use_cache else None

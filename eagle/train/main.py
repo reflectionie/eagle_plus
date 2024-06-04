@@ -149,6 +149,7 @@ class CustomDataset(Dataset):
         hidden_state = data['hidden_state'][:train_config["max_len"]][None, :]
         input_ids = data['input_ids'][:train_config["max_len"]][None, :]
         loss_mask = data["loss_mask"][:train_config["max_len"]][None, :]
+        input_prob = data['probs'][:train_config["max_len"]][None, :]
 
         # except:
         #     with open("error_path.txt", "w") as file:
@@ -164,6 +165,10 @@ class CustomDataset(Dataset):
         input_ids_target = input_ids[:, 1:]
         zeropadding = torch.tensor([[0]])
         input_ids_target = torch.cat((input_ids_target, zeropadding), dim=1)
+        
+        input_prob_target = input_prob[:, 1:]
+        zeropadding = torch.tensor([[0]])
+        input_prob_target = torch.cat((input_prob_target, zeropadding), dim=1)
 
         target = hidden_state[:, 1:, :]
         zeropadding = torch.zeros(1, 1, target.shape[2])
@@ -174,6 +179,7 @@ class CustomDataset(Dataset):
         new_data["target"] = target
         new_data["hidden_state_big"] = hidden_state
         new_data["input_ids"] = input_ids_target
+        new_data["input_prob"] = input_prob_target
         # sample = torch.cat((data['xs'],data['xb']))
         # sample=torch.cat((self.data[index]['x'],self.data[index]['logits']))
         # label = data['y']
@@ -204,6 +210,7 @@ class DataCollatorWithPadding:
         batch_input_ids = torch.cat([self.paddingtensor2D(item['input_ids'], max_length) for item in features])
         batch_hidden_states = torch.cat([self.paddingtensor(item['hidden_state_big'], max_length) for item in features])
         batch_target = torch.cat([self.paddingtensor(item['target'], max_length) for item in features])
+        batch_input_prob = torch.cat([self.paddingtensor(item['input_prob'], max_length) for item in features])
         batch_loss_mask = torch.tensor(
             [item['loss_mask'] + [0] * (max_length - len(item['loss_mask'])) for item in features])
         batch_attention_mask = torch.tensor(
@@ -216,6 +223,7 @@ class DataCollatorWithPadding:
             "target": batch_target,
             "attention_mask": batch_attention_mask,
             "loss_mask": batch_loss_mask,
+            "input_prob": batch_input_prob,
         }
         return batch
 
@@ -239,13 +247,15 @@ def top_accuracy(output, target, topk=(1,)):
 
 
 @torch.no_grad()
-def getkacc(model, data, head, max_length=5):
+def getkacc(model, data, head, max_length=5, input_prob = False):
     hidden_states = data["hidden_states"]
     input_ids = data["input_ids"]
     # attention_mask=data["attention_mask"]
     loss_mask = data["loss_mask"]
     # sample_mask=data["sample_mask"]
     target = data["target"]
+    if input_prob:
+        input_prob = data['prob']
     total = [0 for _ in range(max_length)]
     correct = [0 for _ in range(max_length)]
     bs, sl = hidden_states.shape[0], hidden_states.shape[1]
@@ -257,9 +267,13 @@ def getkacc(model, data, head, max_length=5):
 
             single_hidden_states = hidden_states[i, :j]
             single_input_ids = input_ids[i, :j]
+            if input_prob:
+                single_input_prob = input_prob[i: j]
 
             single_hidden_states = single_hidden_states[None, :, :]
             single_input_ids = single_input_ids[None, :]
+            if input_prob:
+                single_input_prob = single_input_prob[None, :, :]
             for k in range(max_length):
                 if loss_mask[i, single_hidden_states.shape[1] - 1] == 0:
                     break
@@ -271,10 +285,14 @@ def getkacc(model, data, head, max_length=5):
                 # tmp_sample_mask=sample_mask[i,single_hidden_states.shape[1]-1]
                 if not (target_in_token == tmp_token):
                     break
-                out_hidden = model(single_hidden_states, input_ids=single_input_ids)
+                if input_prob:
+                    out_hidden = model(single_hidden_states, input_ids=single_input_ids)
+                else:
+                    out_hidden = model(single_hidden_states, input_ids=single_input_ids, input_prob=single_input_prob)
                 last_hidden = out_hidden[:, -1]
                 last_headout = head(last_hidden)
                 token = torch.argmax(last_headout)
+                prob = torch.nn.functional.softmax(last_headout)
                 total[k] += 1
                 if token == target_out_token:
                     correct[k] += 1
@@ -286,6 +304,7 @@ def getkacc(model, data, head, max_length=5):
                 single_hidden_states = torch.cat((single_hidden_states, out_hidden[:, -1:]), dim=1)
                 single_input_ids = torch.cat((single_input_ids, torch.tensor([[token]]).to(single_input_ids.device)),
                                              dim=1)
+                single_input_prob = torch.cat((single_input_prob, prob), dim=1)
 
     acc = [correct[i] / total[i] for i in range(len(correct))]
     return acc
@@ -426,7 +445,7 @@ for epoch in range(num_epochs + 1):
         for batch_idx, data in enumerate(tqdm(test_loader)):
             with torch.no_grad():
                 if batch_idx < 10:
-                    acces = getkacc(model, data, head, max_length=5)
+                    acces = getkacc(model, data, head, max_length=5, input_prob=config['input_prob'])
                     for i in range(len(acces)):
                         k_acc[i].append(acces[i])
                 predict = model(data["hidden_states"], input_ids=data["input_ids"],
