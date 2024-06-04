@@ -9,6 +9,7 @@ parser.add_argument('--gradient-accumulation-steps', type=int, default=1)
 parser.add_argument('--tmpdir', type=str, default='0')
 parser.add_argument('--outdir', type=str, default='0')
 parser.add_argument('--cpdir', type=str, default='0')
+parser.add_argument('--wandb_run_name', type=str)
 args = parser.parse_args()
 
 train_config = {
@@ -70,7 +71,7 @@ from transformers import get_linear_schedule_with_warmup, AutoConfig
 if accelerator.is_main_process:
     import wandb
 
-    wandb.init(project="eagle_train", entity="reflectionie", config=train_config)
+    wandb.init(project="eagle_plus_train", entity="reflectionie", config=train_config, name=train_config['wandb_run_name'])
 
 baseconfig = AutoConfig.from_pretrained(args.basepath)
 
@@ -373,7 +374,10 @@ for epoch in range(num_epochs + 1):
 
         with accelerator.accumulate(model):
             optimizer.zero_grad()
-            predict = model(data["hidden_states"], input_ids=data["input_ids"], attention_mask=data["attention_mask"])
+            if config.input_prob:
+                predict = model(data["hidden_states"], input_ids=data["input_ids"], attention_mask=data["attention_mask"], input_prob=data["input_prob"])
+            else:
+                predict = model(data["hidden_states"], input_ids=data["input_ids"], attention_mask=data["attention_mask"])
             with torch.no_grad():
                 target_head = head(data["target"])
                 target_p = nn.Softmax(dim=2)(target_head)
