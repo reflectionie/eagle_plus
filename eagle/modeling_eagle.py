@@ -753,7 +753,7 @@ class EAGLEModel(nn.Module):
             self,
             hidden_states,
             input_ids,
-            input_prob: Optional[torch.Tensor] = None,
+            probs: Optional[torch.Tensor] = None,
             attention_mask: Optional[torch.Tensor] = None,
             position_ids: Optional[torch.LongTensor] = None,
             past_key_values: Optional[List[torch.FloatTensor]] = None,
@@ -769,8 +769,8 @@ class EAGLEModel(nn.Module):
         with torch.no_grad():
             inputs_embeds = self.embed_tokens(input_ids)
         
-        if input_prob:
-            prob_hidden = self.prob_fc(input_prob)
+        if probs:
+            probs_hidden = self.prob_fc(probs)
 
         if past_key_values is not None:
             past_key_values_length = past_key_values[0][0].shape[2]
@@ -794,9 +794,9 @@ class EAGLEModel(nn.Module):
 
         inputs_embeds = inputs_embeds.to(hidden_states.dtype)
         
-        if input_prob:
-            prob_hidden = prob_hidden.to(hidden_states.dtype)
-            hidden_states = self.fc(torch.cat((inputs_embeds, hidden_states, prob_hidden), dim=-1))
+        if probs:
+            probs_hidden = probs_hidden.to(hidden_states.dtype)
+            hidden_states = self.fc(torch.cat((inputs_embeds, hidden_states, probs_hidden), dim=-1))
         else: 
             hidden_states = self.fc(torch.cat((inputs_embeds, hidden_states), dim=-1))
        
