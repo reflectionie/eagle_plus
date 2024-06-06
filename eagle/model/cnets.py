@@ -462,6 +462,12 @@ class Model(nn.Module):
         self.padding_idx = config.pad_token_id
         self.vocab_size = config.vocab_size
 
+        if config.input_prob:
+            self.fc = nn.Linear(3 * config.hidden_size, config.hidden_size, bias=bias)
+        else:
+            self.fc = nn.Linear(2 * config.hidden_size, config.hidden_size, bias=bias)
+        if config.input_prob:
+            self.prob_fc = nn.Linear(config.vocab_size, config.hidden_size, bias=bias)
 
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, self.padding_idx)
         if load_emb:
@@ -489,7 +495,7 @@ class Model(nn.Module):
         #self.init_tree()
 
         self.layers = nn.ModuleList([LlamaDecoderLayer(config,index) for index in range(config.num_hidden_layers)])
-        self.fc=nn.Linear(2*config.hidden_size,config.hidden_size,bias=bias)
+        # self.fc=nn.Linear(2*config.hidden_size,config.hidden_size,bias=bias)
         self.act=ACT2FN[config.hidden_act]
         for param in self.embed_tokens.parameters():
             param.requires_grad = False
@@ -538,30 +544,27 @@ class Model(nn.Module):
         return combined_attention_mask
 
     def forward(
-        self,
-        hidden_states,
-        input_ids,
-        attention_mask: Optional[torch.Tensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,
-        past_key_values: Optional[List[torch.FloatTensor]] = None,
-        inputs_embeds: Optional[torch.FloatTensor] = None,
-        use_cache: Optional[bool] = None,
-        output_attentions: Optional[bool] = None,
-        output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
-        std=None
+            self,
+            hidden_states,
+            input_ids,
+            probs: Optional[torch.Tensor] = None,
+            attention_mask: Optional[torch.Tensor] = None,
+            position_ids: Optional[torch.LongTensor] = None,
+            past_key_values: Optional[List[torch.FloatTensor]] = None,
+            use_cache: Optional[bool] = None,
+            output_attentions: Optional[bool] = None,
+            output_hidden_states: Optional[bool] = None,
     ):
         batch_size, seq_length, _ = hidden_states.shape
         seq_length_with_past = seq_length
         past_key_values_length = 0
+        
 
         with torch.no_grad():
             inputs_embeds = self.embed_tokens(input_ids)
-            #inputs_embeds = inputs_embeds.detach()
-
-        # if std is not None:
-        #     noise = torch.randn(inputs_embeds.size(),device=inputs_embeds.device) * std
-        #     inputs_embeds=inputs_embeds+noise
+        
+        if probs is not None:
+            probs_hidden = self.prob_fc(probs)
 
         if past_key_values is not None:
             past_key_values_length = past_key_values[0][0].shape[2]
@@ -583,15 +586,14 @@ class Model(nn.Module):
             attention_mask, (batch_size, seq_length), hidden_states, past_key_values_length
         )
 
-        # if self.gradient_checkpointing and self.training:
-        #    if use_cache:
-        #        use_cache = False
-
-
-        #hidden_states=self.act(self.fc(torch.cat((inputs_embeds,hidden_states),dim=-1)))
-        inputs_embeds=inputs_embeds.to(hidden_states.dtype)
-        hidden_states = self.fc(torch.cat((inputs_embeds, hidden_states), dim=-1))
-
+        inputs_embeds = inputs_embeds.to(hidden_states.dtype)
+        
+        if probs is not None:
+            probs_hidden = probs_hidden.to(hidden_states.dtype)
+            hidden_states = self.fc(torch.cat((inputs_embeds, hidden_states, probs_hidden), dim=-1))
+        else: 
+            hidden_states = self.fc(torch.cat((inputs_embeds, hidden_states), dim=-1))
+       
 
         all_hidden_states = () if output_hidden_states else None
         next_decoder_cache = () if use_cache else None
@@ -633,7 +635,7 @@ class Model(nn.Module):
                 next_decoder_cache += (layer_outputs[2 if output_attentions else 1],)
 
         if use_cache:
-            return hidden_states,next_decoder_cache
+            return hidden_states, next_decoder_cache
 
         return hidden_states
 

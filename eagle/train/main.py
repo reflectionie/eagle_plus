@@ -4,7 +4,7 @@ parser = argparse.ArgumentParser(description='sp')
 parser.add_argument('--basepath', type=str, default='/home/5/uu02155/data/.cache/huggingface/hub/models--lmsys--vicuna-7b-v1.3/snapshots/236eeeab96f0dc2e463f2bebb7bb49809279c6d6')
 parser.add_argument('--configpath', type=str, default="config.json")
 parser.add_argument('--lr', type=float, default=3e-5)
-parser.add_argument('--bs', type=int, default=18)
+parser.add_argument('--bs', type=int, default=15)
 parser.add_argument('--gradient-accumulation-steps', type=int, default=1)
 parser.add_argument('--tmpdir', type=str, default='0')
 parser.add_argument('--outdir', type=str, default='0')
@@ -148,7 +148,6 @@ class CustomDataset(Dataset):
         # try:
         data = torch.load(self.data[index])
         new_data = {}
-        print(data.keys())
         hidden_state = data['hidden_state'][:train_config["max_len"]][None, :]
         input_ids = data['input_ids'][:train_config["max_len"]][None, :]
         loss_mask = data["loss_mask"][:train_config["max_len"]][None, :]
@@ -308,7 +307,8 @@ def getkacc(model, data, head, max_length=5, input_prob = False):
                 single_hidden_states = torch.cat((single_hidden_states, out_hidden[:, -1:]), dim=1)
                 single_input_ids = torch.cat((single_input_ids, torch.tensor([[token]]).to(single_input_ids.device)),
                                              dim=1)
-                single_prob = torch.cat((single_prob, prob), dim=1)
+                if input_prob:
+                    single_probs = torch.cat((single_probs, prob), dim=1)
 
     acc = [correct[i] / total[i] for i in range(len(correct))]
     return acc
@@ -378,7 +378,7 @@ for epoch in range(num_epochs + 1):
         with accelerator.accumulate(model):
             optimizer.zero_grad()
             if config.input_prob:
-                predict = model(data["hidden_states"], input_ids=data["input_ids"], attention_mask=data["attention_mask"], prob=data["probs"])
+                predict = model(data["hidden_states"], input_ids=data["input_ids"], attention_mask=data["attention_mask"], probs=data["probs"])
             else:
                 predict = model(data["hidden_states"], input_ids=data["input_ids"], attention_mask=data["attention_mask"])
             with torch.no_grad():
@@ -440,7 +440,7 @@ for epoch in range(num_epochs + 1):
         print('Train Accuracy: {:.2f}%'.format(100 * correct / total))
         wandb.log({"train/epochacc": correct / total, "train/epochloss": epoch_loss})
 
-    if (epoch + 1) % train_config["save_freq"]:
+    if (epoch + 1) % train_config["save_freq"] == 0:
         top_3acc = [0 for _ in range(3)]
         correct = 0
         total = 0
@@ -513,4 +513,4 @@ for epoch in range(num_epochs + 1):
             # accelerator.save_model(model, f"checkpoints/model_{epoch}")
             # accelerator.save_state(output_dir=f"{args.outdir}/state_{epoch}")
             # os.system(f"cp -r {args.outdir} {args.cpdir}")
-            accelerator.save_state(output_dir=f"{args.cpdir}/state_{epoch}")
+            accelerator.save_state(output_dir=f"{args.cpdir}/state_{train_config['wandb_run_name']}_{epoch}")
