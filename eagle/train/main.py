@@ -20,7 +20,8 @@ train_config = {
     "gradient_accumulation_steps": args.gradient_accumulation_steps,
     "datapath": f"{args.tmpdir}",
     "is_warmup": True,
-    "num_epochs": 20,
+    # "num_epochs": 20,
+    "num_epochs": 50,
     # Depending on your data and model size, the larger the model, the higher the sample efficiency. We recommend setting it between 20-40.
     "num_warmup_steps": 2000,
     "total_steps": 800000,
@@ -41,7 +42,7 @@ train_config = {
     "b1": 0.9,
     "b2": 0.95,
     "grad_clip": 0.5,
-    "save_freq": 5,
+    "save_freq": 3,
     "wandb_run_name": args.wandb_run_name
 }
 import json
@@ -271,7 +272,7 @@ def getkacc(model, data, head, max_length=5, input_prob = False):
             single_hidden_states = hidden_states[i, :j]
             single_input_ids = input_ids[i, :j]
             if input_prob:
-                single_probs = probs[i: j]
+                single_probs = probs[i, :j]
 
             single_hidden_states = single_hidden_states[None, :, :]
             single_input_ids = single_input_ids[None, :]
@@ -308,7 +309,7 @@ def getkacc(model, data, head, max_length=5, input_prob = False):
                 single_input_ids = torch.cat((single_input_ids, torch.tensor([[token]]).to(single_input_ids.device)),
                                              dim=1)
                 if input_prob:
-                    single_probs = torch.cat((single_probs, prob), dim=1)
+                    single_probs = torch.cat((single_probs, prob.unsqueeze(-2)), dim=1)
 
     acc = [correct[i] / total[i] for i in range(len(correct))]
     return acc
@@ -326,6 +327,8 @@ datapath = list_files(train_config["datapath"])
 
 traindatapath = datapath[:int(len(datapath) * 0.95)]
 testdatapath = datapath[int(len(datapath) * 0.95):]
+# testdatapath = datapath[:int(len(datapath) * 0.95)]
+# traindatapath = datapath[int(len(datapath) * 0.95):]
 # print('td',train_config["datapath"])
 # print(datapath)
 # exit()
@@ -441,6 +444,7 @@ for epoch in range(num_epochs + 1):
         wandb.log({"train/epochacc": correct / total, "train/epochloss": epoch_loss})
 
     if (epoch + 1) % train_config["save_freq"] == 0:
+    # if True:
         top_3acc = [0 for _ in range(3)]
         correct = 0
         total = 0
@@ -457,7 +461,7 @@ for epoch in range(num_epochs + 1):
                         k_acc[i].append(acces[i])
                 if config.input_prob:
                     predict = model(data["hidden_states"], input_ids=data["input_ids"],
-                                    attention_mask=data["attention_mask"], prob=data["probs"])
+                                    attention_mask=data["attention_mask"], probs=data["probs"])
                 else:
                     predict = model(data["hidden_states"], input_ids=data["input_ids"],
                                     attention_mask=data["attention_mask"])

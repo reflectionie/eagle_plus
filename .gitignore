@@ -5,6 +5,7 @@ training_data/
 # checkpoiints
 ckpt/
 wandb/
+state*/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

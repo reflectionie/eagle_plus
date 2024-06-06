@@ -1,6 +1,7 @@
 {
     "version": "0.2.0",
     "configurations": [
+
     
 
 
@@ -12,6 +13,7 @@
             "console": "integratedTerminal",
             "args": [
                 "--tmpdir", "/gs/bs/tga-tslab/tingyuan/llama/EAGLE/new_train_data",
+                // "--tmpdir", "/gs/bs/tga-tslab/tingyuan/llama/EAGLE/new_train_data_fake",
                 "--cpdir", "./",
                 "--configpath", "/gs/bs/tga-tslab/tingyuan/llama/eagle_plus/eagle/train/vicuna_7B_config.json",
                 "--wandb_run_name", "w/o_prob_debug0"
@@ -29,6 +31,7 @@
             "console": "integratedTerminal",
             "args": [
                 "--tmpdir", "/gs/bs/tga-tslab/tingyuan/llama/EAGLE/new_train_data",
+                // "--tmpdir", "/gs/bs/tga-tslab/tingyuan/llama/EAGLE/new_train_data_fake",
                 "--cpdir", "./",
                 "--configpath", "/gs/bs/tga-tslab/tingyuan/llama/eagle_plus/eagle/train/vicuna_7B_config_prob.json",
                 "--wandb_run_name", "w/o_prob_debug0"
