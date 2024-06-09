@@ -169,7 +169,7 @@ class CustomDataset(Dataset):
         zeropadding = torch.tensor([[0]])
         input_ids_target = torch.cat((input_ids_target, zeropadding), dim=1)
         
-        probs_target = probs[:, 1:, :]
+        probs_target = probs[:, :-1, :]
         bs, _, vocab = probs_target.shape  
         zeropadding = torch.zeros(bs, 1, vocab, dtype=probs_target.dtype, device=probs_target.device)
         probs_target = torch.cat((probs_target, zeropadding), dim=1)
@@ -296,7 +296,7 @@ def getkacc(model, data, head, max_length=5, input_prob = False):
                 last_hidden = out_hidden[:, -1]
                 last_headout = head(last_hidden)
                 token = torch.argmax(last_headout)
-                prob = torch.nn.functional.softmax(last_headout)
+                prob = torch.nn.functional.softmax(last_headout, dim=-1)
                 total[k] += 1
                 if token == target_out_token:
                     correct[k] += 1
@@ -325,10 +325,10 @@ else:
 
 datapath = list_files(train_config["datapath"])
 
-traindatapath = datapath[:int(len(datapath) * 0.95)]
-testdatapath = datapath[int(len(datapath) * 0.95):]
-# testdatapath = datapath[:int(len(datapath) * 0.95)]
-# traindatapath = datapath[int(len(datapath) * 0.95):]
+# traindatapath = datapath[:int(len(datapath) * 0.95)]
+# testdatapath = datapath[int(len(datapath) * 0.95):]
+testdatapath = datapath[:int(len(datapath) * 0.5)]
+traindatapath = datapath[int(len(datapath) * 0.5):]
 # print('td',train_config["datapath"])
 # print(datapath)
 # exit()
