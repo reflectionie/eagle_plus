@@ -461,7 +461,9 @@ class Model(nn.Module):
         self.gradient_checkpointing = True
         self.padding_idx = config.pad_token_id
         self.vocab_size = config.vocab_size
-
+        self.mask = config.mask
+        self.mask_ratio = config.mask_ratio
+        
         if config.input_prob:
             self.fc = nn.Linear(3 * config.hidden_size, config.hidden_size, bias=bias)
         else:
@@ -542,6 +544,26 @@ class Model(nn.Module):
 
 
         return combined_attention_mask
+    
+    def create_embedding_mask(self, emb_shape, mask_ratio=0.20):
+        # Calculate the total number of elements that need to be masked
+        shape = emb_shape
+        num_elements = shape.numel()
+        num_mask_elements = int(mask_ratio * num_elements)
+
+       # Create a Boolean mask with the same shape as the embedding
+        mask = torch.zeros(num_elements, dtype=torch.bool)
+
+        # Randomly select 20% of the elements and set them to True
+        mask[:num_mask_elements] = True
+        mask = mask[torch.randperm(num_elements)]  # random shuffle
+        mask = mask.view(shape)  # Reshape to the original shape
+
+        # Convert boolean mask to floating point (1 and 0)
+        mask = mask.float()
+        return mask
+
+        
 
     def forward(
             self,
@@ -559,9 +581,15 @@ class Model(nn.Module):
         seq_length_with_past = seq_length
         past_key_values_length = 0
         
+            
+        
 
         with torch.no_grad():
             inputs_embeds = self.embed_tokens(input_ids)
+            
+        if self.mask and self.training:
+            emb_mask = self.create_embedding_mask(inputs_embeds.shape, mask_ratio=self.mask_ratio).to(inputs_embeds.device)
+            inputs_embeds = emb_mask * inputs_embeds
         
         if probs is not None:
             probs_hidden = self.prob_fc(probs)

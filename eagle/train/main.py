@@ -11,6 +11,7 @@ parser.add_argument('--outdir', type=str, default='0')
 parser.add_argument('--cpdir', type=str, default='0')
 parser.add_argument('--wandb_run_name', type=str)
 parser.add_argument('--resume', action='store_true', help='Resume training from checkpoint')
+parser.add_argument("--run_id", type=str, default=None, help="Optional run ID to resume a W&B run.")
 args = parser.parse_args()
 
 train_config = {

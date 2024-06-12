@@ -1,6 +1,7 @@
 # dataset
 new_train_data/
 training_data/
+all_data/
 
 # checkpoiints
 ckpt/
