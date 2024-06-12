@@ -10,6 +10,7 @@ parser.add_argument('--tmpdir', type=str, default='0')
 parser.add_argument('--outdir', type=str, default='0')
 parser.add_argument('--cpdir', type=str, default='0')
 parser.add_argument('--wandb_run_name', type=str)
+parser.add_argument('--resume', action='store_true', help='Resume training from checkpoint')
 args = parser.parse_args()
 
 train_config = {
@@ -73,7 +74,11 @@ from transformers import get_linear_schedule_with_warmup, AutoConfig
 if accelerator.is_main_process:
     import wandb
 
-    wandb.init(project="eagle_plus_train", entity="reflectionie", config=train_config, name=train_config['wandb_run_name'])
+    # wandb.init(project="eagle_plus_train", entity="reflectionie", config=train_config, name=train_config['wandb_run_name'])
+    if args.resume:
+        wandb.init(project="eagle_plus_train", entity="reflectionie", config=train_config, name=train_config['wandb_run_name'], resume="must")
+    else:
+        wandb.init(project="eagle_plus_train", entity="reflectionie", config=train_config, name=train_config['wandb_run_name'])
 
 baseconfig = AutoConfig.from_pretrained(args.basepath)
 
@@ -325,10 +330,10 @@ else:
 
 datapath = list_files(train_config["datapath"])
 
-# traindatapath = datapath[:int(len(datapath) * 0.95)]
-# testdatapath = datapath[int(len(datapath) * 0.95):]
-testdatapath = datapath[:int(len(datapath) * 0.5)]
-traindatapath = datapath[int(len(datapath) * 0.5):]
+traindatapath = datapath[:int(len(datapath) * 0.95)]
+testdatapath = datapath[int(len(datapath) * 0.95):]
+# testdatapath = datapath[:int(len(datapath) * 0.5)]
+# traindatapath = datapath[int(len(datapath) * 0.5):]
 # print('td',train_config["datapath"])
 # print(datapath)
 # exit()
@@ -369,6 +374,12 @@ else:
         model, head, optimizer, train_loader, test_loader
     )
 # accelerator.load_state("checkpoints/state_5")
+if args.resume:
+    checkpoint_paths = sorted([os.path.join(args.cpdir, d) for d in os.listdir(args.cpdir) if d.startswith(f"state_{train_config['wandb_run_name']}_")], key=os.path.getmtime)
+    if checkpoint_paths:
+        latest_checkpoint = checkpoint_paths[-1]
+        accelerator.load_state(latest_checkpoint)
+
 for epoch in range(num_epochs + 1):
     top_3acc = [0 for _ in range(3)]
     correct = 0

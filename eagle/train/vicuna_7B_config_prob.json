@@ -19,5 +19,7 @@
   "transformers_version": "4.28.1",
   "use_cache": true,
   "vocab_size": 32000,
-  "input_prob": true
+  "input_prob": true,
+  "mask": false,
+  "mask_ratio": 0.20
 }
