@@ -44,7 +44,7 @@ train_config = {
     "b1": 0.9,
     "b2": 0.95,
     "grad_clip": 0.5,
-    "save_freq": 2,
+    "save_freq": 3,
     "wandb_run_name": args.wandb_run_name
 }
 import json
@@ -158,7 +158,7 @@ class CustomDataset(Dataset):
         hidden_state = data['hidden_state'][:train_config["max_len"]][None, :]
         input_ids = data['input_ids'][:train_config["max_len"]][None, :]
         loss_mask = data["loss_mask"][:train_config["max_len"]][None, :]
-        probs = data['probs'][:train_config["max_len"]][None, :]
+        logits = data['logits'][:train_config["max_len"]][None, :]
 
         # except:
         #     with open("error_path.txt", "w") as file:
@@ -175,10 +175,10 @@ class CustomDataset(Dataset):
         zeropadding = torch.tensor([[0]])
         input_ids_target = torch.cat((input_ids_target, zeropadding), dim=1)
         
-        probs_target = probs[:, :-1, :]
-        bs, _, vocab = probs_target.shape  
-        zeropadding = torch.zeros(bs, 1, vocab, dtype=probs_target.dtype, device=probs_target.device)
-        probs_target = torch.cat((probs_target, zeropadding), dim=1)
+        logits_target = logits[:, :-1, :]
+        bs, _, vocab = logits_target.shape  
+        zeropadding = torch.zeros(bs, 1, vocab, dtype=logits_target.dtype, device=logits_target.device)
+        logits_target = torch.cat((logits_target, zeropadding), dim=1)
 
         target = hidden_state[:, 1:, :]
         zeropadding = torch.zeros(1, 1, target.shape[2])
@@ -189,7 +189,7 @@ class CustomDataset(Dataset):
         new_data["target"] = target
         new_data["hidden_state_big"] = hidden_state
         new_data["input_ids"] = input_ids_target
-        new_data["probs"] = probs_target
+        new_data["logits"] = logits_target
         # sample = torch.cat((data['xs'],data['xb']))
         # sample=torch.cat((self.data[index]['x'],self.data[index]['logits']))
         # label = data['y']
@@ -220,7 +220,7 @@ class DataCollatorWithPadding:
         batch_input_ids = torch.cat([self.paddingtensor2D(item['input_ids'], max_length) for item in features])
         batch_hidden_states = torch.cat([self.paddingtensor(item['hidden_state_big'], max_length) for item in features])
         batch_target = torch.cat([self.paddingtensor(item['target'], max_length) for item in features])
-        batch_probs = torch.cat([self.paddingtensor(item['probs'], max_length) for item in features])
+        batch_logits = torch.cat([self.paddingtensor(item['logits'], max_length) for item in features])
         batch_loss_mask = torch.tensor(
             [item['loss_mask'] + [0] * (max_length - len(item['loss_mask'])) for item in features])
         batch_attention_mask = torch.tensor(
@@ -233,7 +233,7 @@ class DataCollatorWithPadding:
             "target": batch_target,
             "attention_mask": batch_attention_mask,
             "loss_mask": batch_loss_mask,
-            "probs": batch_probs,
+            "logits": batch_logits,
         }
         return batch
 
@@ -257,15 +257,15 @@ def top_accuracy(output, target, topk=(1,)):
 
 
 @torch.no_grad()
-def getkacc(model, data, head, max_length=5, input_prob = False):
+def getkacc(model, data, head, max_length=5, input_logits = False):
     hidden_states = data["hidden_states"]
     input_ids = data["input_ids"]
     # attention_mask=data["attention_mask"]
     loss_mask = data["loss_mask"]
     # sample_mask=data["sample_mask"]
     target = data["target"]
-    if input_prob:
-        probs = data['probs']
+    if input_logits:
+        logits = data['logits']
     total = [0 for _ in range(max_length)]
     correct = [0 for _ in range(max_length)]
     bs, sl = hidden_states.shape[0], hidden_states.shape[1]
@@ -277,13 +277,13 @@ def getkacc(model, data, head, max_length=5, input_prob = False):
 
             single_hidden_states = hidden_states[i, :j]
             single_input_ids = input_ids[i, :j]
-            if input_prob:
-                single_probs = probs[i, :j]
+            if input_logits:
+                single_logits = logits[i, :j]
 
             single_hidden_states = single_hidden_states[None, :, :]
             single_input_ids = single_input_ids[None, :]
-            if input_prob:
-                single_probs = single_probs[None, :, :]
+            if input_logits:
+                single_logits = single_logits[None, :, :]
             for k in range(max_length):
                 if loss_mask[i, single_hidden_states.shape[1] - 1] == 0:
                     break
@@ -295,14 +295,15 @@ def getkacc(model, data, head, max_length=5, input_prob = False):
                 # tmp_sample_mask=sample_mask[i,single_hidden_states.shape[1]-1]
                 if not (target_in_token == tmp_token):
                     break
-                if input_prob:
-                    out_hidden = model(single_hidden_states, input_ids=single_input_ids, probs=single_probs)
+                if input_logits:
+                    out_hidden = model(single_hidden_states, input_ids=single_input_ids, probs=single_logits)
                 else:
                     out_hidden = model(single_hidden_states, input_ids=single_input_ids)
                 last_hidden = out_hidden[:, -1]
                 last_headout = head(last_hidden)
                 token = torch.argmax(last_headout)
-                prob = torch.nn.functional.softmax(last_headout, dim=-1)
+                # prob = torch.nn.functional.softmax(last_headout, dim=-1)
+                logits = last_headout
                 total[k] += 1
                 if token == target_out_token:
                     correct[k] += 1
@@ -314,8 +315,8 @@ def getkacc(model, data, head, max_length=5, input_prob = False):
                 single_hidden_states = torch.cat((single_hidden_states, out_hidden[:, -1:]), dim=1)
                 single_input_ids = torch.cat((single_input_ids, torch.tensor([[token]]).to(single_input_ids.device)),
                                              dim=1)
-                if input_prob:
-                    single_probs = torch.cat((single_probs, prob.unsqueeze(-2)), dim=1)
+                if input_logits:
+                    single_logits = torch.cat((single_logits, logits.unsqueeze(-2)), dim=1)
 
     acc = [correct[i] / total[i] for i in range(len(correct))]
     return acc
@@ -378,9 +379,7 @@ else:
 if args.resume:
     checkpoint_paths = sorted([os.path.join(args.cpdir, d) for d in os.listdir(args.cpdir) if d.startswith(f"state_{train_config['wandb_run_name']}_")], key=os.path.getmtime)
     if checkpoint_paths:
-        print("resume accelerator........")
         latest_checkpoint = checkpoint_paths[-1]
-        curr_epoch =  int(checkpoint_paths[-1].split('_')[-1])
         accelerator.load_state(latest_checkpoint)
 
 for epoch in range(num_epochs + 1):
@@ -394,8 +393,8 @@ for epoch in range(num_epochs + 1):
 
         with accelerator.accumulate(model):
             optimizer.zero_grad()
-            if config.input_prob:
-                predict = model(data["hidden_states"], input_ids=data["input_ids"], attention_mask=data["attention_mask"], probs=data["probs"])
+            if config.input_logits:
+                predict = model(data["hidden_states"], input_ids=data["input_ids"], attention_mask=data["attention_mask"], probs=data["logits"])
             else:
                 predict = model(data["hidden_states"], input_ids=data["input_ids"], attention_mask=data["attention_mask"])
             with torch.no_grad():
@@ -470,12 +469,12 @@ for epoch in range(num_epochs + 1):
         for batch_idx, data in enumerate(tqdm(test_loader)):
             with torch.no_grad():
                 if batch_idx < 10:
-                    acces = getkacc(model, data, head, max_length=5, input_prob=config.input_prob)
+                    acces = getkacc(model, data, head, max_length=5, input_logits=config.input_logits)
                     for i in range(len(acces)):
                         k_acc[i].append(acces[i])
-                if config.input_prob:
+                if config.input_logits:
                     predict = model(data["hidden_states"], input_ids=data["input_ids"],
-                                    attention_mask=data["attention_mask"], probs=data["probs"])
+                                    attention_mask=data["attention_mask"], probs=data["logits"])
                 else:
                     predict = model(data["hidden_states"], input_ids=data["input_ids"],
                                     attention_mask=data["attention_mask"])
@@ -525,19 +524,10 @@ for epoch in range(num_epochs + 1):
                 wandb.log({f'test/top_{id + 1}_acc': i.sum().item() / total})
         epoch_loss /= num_batches
         if accelerator.is_local_main_process:
-            if args.resume:
-                print('Test Epoch [{}/{}], Loss: {:.4f}'.format(epoch + 1 + curr_epoch, num_epochs, epoch_loss))
-                print('Test Accuracy: {:.2f}%'.format(100 * correct / total))
-                wandb.log({"test/epochacc": correct / total, "test/epochloss": epoch_loss})
-                # accelerator.save_model(model, f"checkpoints/model_{epoch}")
-                # accelerator.save_state(output_dir=f"{args.outdir}/state_{epoch}")
-                # os.system(f"cp -r {args.outdir} {args.cpdir}")
-                accelerator.save_state(output_dir=f"{args.cpdir}/state_{train_config['wandb_run_name']}_{epoch + curr_epoch}")
-            else:
-                print('Test Epoch [{}/{}], Loss: {:.4f}'.format(epoch + 1, num_epochs, epoch_loss))
-                print('Test Accuracy: {:.2f}%'.format(100 * correct / total))
-                wandb.log({"test/epochacc": correct / total, "test/epochloss": epoch_loss})
-                # accelerator.save_model(model, f"checkpoints/model_{epoch}")
-                # accelerator.save_state(output_dir=f"{args.outdir}/state_{epoch}")
-                # os.system(f"cp -r {args.outdir} {args.cpdir}")
-                accelerator.save_state(output_dir=f"{args.cpdir}/state_{train_config['wandb_run_name']}_{epoch}")
+            print('Test Epoch [{}/{}], Loss: {:.4f}'.format(epoch + 1, num_epochs, epoch_loss))
+            print('Test Accuracy: {:.2f}%'.format(100 * correct / total))
+            wandb.log({"test/epochacc": correct / total, "test/epochloss": epoch_loss})
+            # accelerator.save_model(model, f"checkpoints/model_{epoch}")
+            # accelerator.save_state(output_dir=f"{args.outdir}/state_{epoch}")
+            # os.system(f"cp -r {args.outdir} {args.cpdir}")
+            accelerator.save_state(output_dir=f"{args.cpdir}/state_{train_config['wandb_run_name']}_{epoch}")
