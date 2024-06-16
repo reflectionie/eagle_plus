@@ -321,7 +321,7 @@ def getkacc(model, data, head, max_length=5, input_prob = False, input_logits = 
                 last_headout = head(last_hidden)
                 token = torch.argmax(last_headout)
                 prob = torch.nn.functional.softmax(last_headout, dim=-1)
-                logits = last_headout
+                logit = last_headout
                 total[k] += 1
                 if token == target_out_token:
                     correct[k] += 1
@@ -336,7 +336,7 @@ def getkacc(model, data, head, max_length=5, input_prob = False, input_logits = 
                 if input_prob:
                     single_probs = torch.cat((single_probs, prob.unsqueeze(-2)), dim=1)
                 if input_logits:
-                    single_logits = torch.cat((single_logits, logits.unsqueeze(-2)), dim=1)
+                    single_logits = torch.cat((single_logits, logit.unsqueeze(-2)), dim=1)
 
     acc = [correct[i] / total[i] for i in range(len(correct))]
     return acc

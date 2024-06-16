@@ -60,6 +60,42 @@
                 "mixed_precision": "bf16"
             },
         },
-        
+        // accelerate launch -m --mixed_precision=bf16  eagle.train.main_logits_test --tmpdir /home/5/uu02155/data/llama/eagle_plus/logits_data/logits_1_2  --cpdir ./ --configpath /gs/bs/tga-tslab/tingyuan/llama/eagle_plus/eagle/train/vicuna_7B_config_logits.json --wandb_run_name logits12_2024_06_16_w_logits
+        {
+            "name": "w_logits",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "eagle.train.main_logits_test",
+            "console": "integratedTerminal",
+            "args": [
+                // "--tmpdir", "/gs/bs/tga-tslab/tingyuan/llama/EAGLE/new_train_data",
+                "--tmpdir", "/home/5/uu02155/data/llama/eagle_plus/logits_data/logits_1_2",
+                "--cpdir", "./",
+                "--configpath", "/gs/bs/tga-tslab/tingyuan/llama/eagle_plus/eagle/train/vicuna_7B_config_logits.json",
+                "--wandb_run_name", "w_logits_debug0"
+            ],
+            "env": {
+                "PYTHONPATH": "/gs/bs/tga-tslab/tingyuan/llama/eagle_plus/",
+                "mixed_precision": "bf16"
+            },
+        },
+        {
+            "name": "w_probs_",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "eagle.train.main",
+            "console": "integratedTerminal",
+            "args": [
+                // "--tmpdir", "/gs/bs/tga-tslab/tingyuan/llama/EAGLE/new_train_data",
+                "--tmpdir", "/home/5/uu02155/data/llama/eagle_plus/logits_data/logits_1_2",
+                "--cpdir", "./",
+                "--configpath", "/gs/bs/tga-tslab/tingyuan/llama/eagle_plus/eagle/train/vicuna_7B_config_prob.json",
+                "--wandb_run_name", "w_prob_debug0"
+            ],
+            "env": {
+                "PYTHONPATH": "/gs/bs/tga-tslab/tingyuan/llama/eagle_plus/",
+                "mixed_precision": "bf16"
+            },
+        },
     ]
 }

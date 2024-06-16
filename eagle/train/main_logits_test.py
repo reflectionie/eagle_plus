@@ -44,7 +44,7 @@ train_config = {
     "b1": 0.9,
     "b2": 0.95,
     "grad_clip": 0.5,
-    "save_freq": 3,
+    "save_freq": 2,
     "wandb_run_name": args.wandb_run_name
 }
 import json
@@ -303,7 +303,7 @@ def getkacc(model, data, head, max_length=5, input_logits = False):
                 last_headout = head(last_hidden)
                 token = torch.argmax(last_headout)
                 # prob = torch.nn.functional.softmax(last_headout, dim=-1)
-                logits = last_headout
+                logit = last_headout
                 total[k] += 1
                 if token == target_out_token:
                     correct[k] += 1
@@ -316,7 +316,7 @@ def getkacc(model, data, head, max_length=5, input_logits = False):
                 single_input_ids = torch.cat((single_input_ids, torch.tensor([[token]]).to(single_input_ids.device)),
                                              dim=1)
                 if input_logits:
-                    single_logits = torch.cat((single_logits, logits.unsqueeze(-2)), dim=1)
+                    single_logits = torch.cat((single_logits, logit.unsqueeze(-2)), dim=1)
 
     acc = [correct[i] / total[i] for i in range(len(correct))]
     return acc
