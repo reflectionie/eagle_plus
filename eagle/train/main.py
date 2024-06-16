@@ -19,7 +19,7 @@ train_config = {
     "num_machines": 1,
     "lr": args.lr,
     "bs": args.bs,
-    "gradient_accumulation_stepsgradient_accumulation_steps": args.gradient_accumulation_steps,
+    "gradient_accumulation_steps": args.gradient_accumulation_steps,
     "datapath": f"{args.tmpdir}",
     "is_warmup": True,
     # "num_epochs": 20,
@@ -77,7 +77,7 @@ if accelerator.is_main_process:
 
     # wandb.init(project="eagle_plus_train", entity="reflectionie", config=train_config, name=train_config['wandb_run_name'])
     if args.resume:
-        wandb.init(project="eagle_plus_train", entity="reflectionie", config=train_config, name=train_config['wandb_run_name'], resume="must")
+        wandb.init(project="eagle_plus_train", entity="reflectionie", config=train_config, name=train_config['wandb_run_name'], resume="must", id=args.run_id)
     else:
         wandb.init(project="eagle_plus_train", entity="reflectionie", config=train_config, name=train_config['wandb_run_name'])
 
@@ -453,9 +453,14 @@ for epoch in range(num_epochs + 1):
         for id, i in enumerate(top_3acc):
             wandb.log({f'train/epochtop_{id + 1}_acc': i.sum().item() / total})
     if accelerator.is_local_main_process:
-        print('Epoch [{}/{}], Loss: {:.4f}'.format(epoch + 1, num_epochs, epoch_loss))
-        print('Train Accuracy: {:.2f}%'.format(100 * correct / total))
-        wandb.log({"train/epochacc": correct / total, "train/epochloss": epoch_loss})
+        if args.resume:
+            print('Epoch [{}/{}], Loss: {:.4f}'.format(epoch + 1 + curr_epoch, num_epochs, epoch_loss))
+            print('Train Accuracy: {:.2f}%'.format(100 * correct / total))
+            wandb.log({"train/epochacc": correct / total, "train/epochloss": epoch_loss})
+        else:
+            print('Epoch [{}/{}], Loss: {:.4f}'.format(epoch + 1, num_epochs, epoch_loss))
+            print('Train Accuracy: {:.2f}%'.format(100 * correct / total))
+            wandb.log({"train/epochacc": correct / total, "train/epochloss": epoch_loss})
 
     if (epoch + 1) % train_config["save_freq"] == 0:
     # if True:
