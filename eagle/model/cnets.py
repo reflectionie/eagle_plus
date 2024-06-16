@@ -464,11 +464,11 @@ class Model(nn.Module):
         self.mask = config.mask
         self.mask_ratio = config.mask_ratio
         
-        if config.input_prob:
+        if config.input_prob or config.input_logits:
             self.fc = nn.Linear(3 * config.hidden_size, config.hidden_size, bias=bias)
         else:
             self.fc = nn.Linear(2 * config.hidden_size, config.hidden_size, bias=bias)
-        if config.input_prob:
+        if config.input_prob or config.input_logits:
             self.prob_fc = nn.Linear(config.vocab_size, config.hidden_size, bias=bias)
 
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, self.padding_idx)

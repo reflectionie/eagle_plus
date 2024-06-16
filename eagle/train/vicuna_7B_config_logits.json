@@ -20,6 +20,7 @@
   "use_cache": true,
   "vocab_size": 32000,
   "input_logits": true,
+  "input_prob": true,
   "mask": false,
   "mask_ratio": 0.20
 }
